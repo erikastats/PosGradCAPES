@@ -1,0 +1,40 @@
+SigladaIES,UF,MUNICIPIO,Tipo
+UFAM,AM,Manaus,Publica
+UFPA,PA,Belém,Publica
+UFC,CE,Fortaleza,Publica
+UFPB-JP,PB,João Pessoa,Publica
+UFCG,PB,Campina Grande,Publica
+UFPE,PE,Recife,Publica
+UFAL,AL,Maceió,Publica
+UFBA,BA,Salvador,Publica
+UFRJ,RJ,Rio de Janeiro,Publica
+UFF,RJ,Niterói,Publica
+PUC-RIO,RJ,Rio de Janeiro,Particular
+IMPA,RJ,Rio de Janeiro,Publica
+UFMG,MG,Belo Horizonte,Publica
+UFSCAR,SP,São Carlos,Publica
+USP,SP,São Paulo,Publica
+USP/SC,SP,São Carlos,Publica
+UNICAMP,SP,Campinas,Publica
+UNESP-SJRP,SP,São José do Rio Preto,Publica
+UFPR,PR,Curitiba,Publica
+UEM,PR,Maringá,Publica
+UFSC,SC,Florianópolis,Publica
+UFRGS,RS,Porto Alegre,Publica
+UFG,GO,Goiânia,Publica
+UNB,DF,Brasília,Publica
+UFES,ES,Vitória,Publica
+UFRN,RN,Natal,Publica
+UFSM,RS,Santa Maria,Publica
+UFU,MG,Uberlândia,Publica
+UEL,PR,Londrina,Publica
+UFV,MG,Viçosa,Publica
+UFABC,SP,Santo André,Publica
+FUFPI,PI,Teresina,Publica
+UNESP-PP,SP,Presidente Prudente,Publica
+UFJF,MG,Juiz de Fora,Publica
+UFMA,MA,São Luís,Publica
+FUFSE,SE,São Cristóvão,Publica
+FGV/RJ,RJ,Rio de Janeiro,Publica
+UNIFEI,MG,Itajubá,Publica
+UNIFESP,SP,São Paulo,Publica

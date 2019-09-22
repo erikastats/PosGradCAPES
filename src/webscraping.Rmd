@@ -1,0 +1,390 @@
+---
+title: "WebScraping MEC"
+author: "Érika S. Machado"
+date: "4 de abril de 2019"
+output: 
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: inline
+---
+
+
+# Bibliotecas
+
+```{r, warning=FALSE}
+library(devtools)
+library(httr)
+library(tm)
+library(tidyr)
+library(rvest)
+library(tidyverse)
+library(RCurl)
+library(xlsx)
+library(readxl)
+library(stringr)
+
+
+```
+
+# Importando as informações
+```{r}
+links = read.table("../data/linkformulario2.txt", stringsAsFactors = F, header = T)
+```
+
+```{r, warning=FALSE}
+listaconteudo = lapply(links$link, function(x){
+  cont = paste0("https://sucupira.capes.gov.br",x) %>% read_html() 
+  id = cont %>% html_nodes(".col-md-10") %>% .[2] %>% str_remove('<div class="col-md-10">')%>% str_remove("\n                  </div>")
+  tabelas = cont %>% html_table(fill = TRUE)
+  list(tabelas, id)
+})
+```
+
+# Tabela Evolução
+```{r}
+###Todas as notas Mestrado/Doutorado
+
+tabelaevolucaoMD = lapply(listaconteudo[-18], function(conteudo){
+  
+  anos = c(1996,1998,2001,2004,2007,
+           2008,2009,2010,2011,2012,
+           2013,2014,2017,2018)
+  
+  # Separando os dados da tabela de evoulção
+  a = conteudo[[1]][[1]]
+  a[a == "-"] = NA
+  b = a[,-c(1:3)] # pegando só as colunas com os anos
+  nao  = anos[-which(anos %in% b[1,])] #fazendo um vetor com os anos que não tem informação
+  d = matrix(c(nao, rep(NA, rep(length(nao)*c(nrow(b) -1)))), # Fazendo uma matriz com os anos faltantes
+             byrow = T, nrow = nrow(b))
+  e = data.frame(b, d) %>% t() %>% data.frame( stringsAsFactors = F)
+  e = e %>% arrange(X1) %>% t() %>% data.frame( stringsAsFactors = F)
+  tes = data.frame(a[,1:3], e, stringsAsFactors = F)
+  colnames(tes) = c("Nome", "Nível", "Situação", paste0("A", anos))
+  tes = tes[-1,]
+  
+  # Preparando id para identificação sem "()"
+  id = conteudo[[2]] %>% 
+    strsplit(" ") %>% 
+    unlist()
+  id = id[length(id)] %>% 
+    gsub(pattern = "\\(", replacement = "") %>% 
+    gsub(pattern = "\\)", replacement = "")
+  
+  # Tabela final
+   if (nrow(a) == 3){
+    kk = apply(tes[,-c(1:4)], 2, as.numeric) 
+  } else {
+    kk = apply(tes[,-c(1:4)], 2, as.numeric) %>% t()
+  }
+  tes[,4] = tes[,4] %>% as.character()
+  final = data.frame(Codigo = rep(id, nrow(tes)), tes[,1:4], kk, stringsAsFactors = F)
+  final
+  
+})
+
+tabelaevolucaoMD = do.call(rbind, tabelaevolucaoMD)
+
+###### Todas as notas unificadas
+
+tabelaevolucaoU = lapply(listaconteudo[-18], function(conteudo){
+  
+  anos = c(1996,1998,2001,2004,2007,
+           2008,2009,2010,2011,2012,
+           2013,2014,2017,2018)
+  
+  # Separando os dados da tabela de evoulção
+  a = conteudo[[1]][[1]]
+  n = nrow(a)
+    if (n == 3) {
+    a = a[1:2,]
+    a[2,2] = "Mestrado/Doutorado"
+    } else { 
+    a = conteudo[[1]][[1]]}
+  a[a == "-"] = NA
+  b = a[,-c(1:3)] # pegando só as colunas com os anos
+  nao  = anos[-which(anos %in% b[1,])] #fazendo um vetor com os anos que não tem informação
+  
+
+  d = matrix(c(nao, rep(NA, rep(length(nao)*c(nrow(b) -1)))), # Fazendo uma matriz com os anos faltantes
+             byrow = T, nrow = nrow(b))
+  e = data.frame(b, d) %>% t() %>% data.frame( stringsAsFactors = F)
+  e = e %>% arrange(X1) %>% t() %>% data.frame( stringsAsFactors = F)
+  tes = data.frame(a[,1:3], e, stringsAsFactors = F)
+  colnames(tes) = c("Nome", "Nível", "Situação", paste0("A", anos))
+  tes = tes[-1,]
+  
+  # Preparando id para identificação sem "()"
+  id = conteudo[[2]] %>% 
+    strsplit(" ") %>% 
+    unlist()
+  id = id[length(id)] %>% 
+    gsub(pattern = "\\(", replacement = "") %>% 
+    gsub(pattern = "\\)", replacement = "")
+  
+  # Tabela final
+  
+
+    kk = apply(tes[,-c(1:4)], 2, as.numeric) %>% t()
+  tes[,4] = tes[,4] %>% as.character()
+  final = data.frame(Codigo = rep(id, nrow(tes)), tes[,1:4], kk, stringsAsFactors = F)
+  final
+  
+})
+
+tabelaevolucaoU = do.call(rbind, tabelaevolucaoU)
+
+```
+
+```{r}
+#Salvando
+#write.csv(TabelaEvolucaoDetalhada, "TabelaEvolucaoDetalhadaA.csv")
+#write.csv(TabelaEvolucaoUnica, "TabelaEvolucaoUnica.csv")
+#write.xlsx(TabelaEvolucaoDetalhada, "TabelaEvolucaoDetalhada.xlsx")
+#write.xlsx(TabelaEvolucaoUnica, "TabelaEvolucaoUnica.xlsx")
+```
+
+
+```{r}
+### Separando Mestrado E doutorado
+
+IndiceDoutorado =  which(grepl(pattern = "Doutorado"  , x = tabelaevolucaoMD$Nível))
+Doutorado = tabelaevolucaoMD[IndiceDoutorado,]
+names(Doutorado) = paste0("D", names(Doutorado))
+Mestrado = tabelaevolucaoMD[-IndiceDoutorado,]
+
+### Uma tabela com quem tem Mestrado e Doutorado
+doisCodigo = Mestrado$Codigo[Mestrado$Codigo %in% Doutorado$Codigo]
+DouMes = merge(Mestrado,Doutorado,  
+               by.x = "Codigo", by.y = "DCodigo" )
+
+### Completando o resto da tabela pra quem só tem Doutorado
+
+SoDou = Doutorado[-which(Doutorado$DCodigo %in%  doisCodigo),]
+Codigo = SoDou$DCodigo
+semMes = data.frame(Codigo , 
+                  DNome = rep(NA, length(Codigo)), 
+                  DNivel = rep("Mestrado", length(Codigo)),
+                  DSituacao = rep("Inexistente", length(Codigo)),
+                  DA1996 = rep(NA, length(Codigo)),
+                  DA1998 = rep(NA, length(Codigo)),
+                  DA2001 = rep(NA, length(Codigo)),
+                  DA2004 = rep(NA, length(Codigo)),
+                  DA2007 = rep(NA, length(Codigo)),
+                  DA2008 = rep(NA, length(Codigo)),
+                  DA2009 = rep(NA, length(Codigo)),
+                  DA2010 = rep(NA, length(Codigo)),
+                  DA2011 = rep(NA, length(Codigo)),
+                  DA2012 = rep(NA, length(Codigo)),
+                  DA2013 = rep(NA, length(Codigo)),
+                  DA2014 = rep(NA, length(Codigo)),
+                  DA2017 = rep(NA, length(Codigo)),
+                  DA2018 = rep(NA, length(Codigo)), stringsAsFactors = F)
+names(semMes) = names(Mestrado)
+SoDoutorado = cbind(semMes,SoDou)
+
+### Completando o resto da tabela pra quem só tem Mestrado
+
+SoMes = Mestrado[-which(Mestrado$Codigo %in%  doisCodigo),]
+Codigo = SoMes$Codigo
+semDou = data.frame(Codigo , 
+                    DNome = rep(NA, length(Codigo)), 
+                    DNivel = rep("Doutorado", length(Codigo)),
+                    DSituacao = rep("Inexistente", length(Codigo)),
+                    DA1996 = rep(NA, length(Codigo)),
+                    DA1998 = rep(NA, length(Codigo)),
+                    DA2001 = rep(NA, length(Codigo)),
+                    DA2004 = rep(NA, length(Codigo)),
+                    DA2007 = rep(NA, length(Codigo)),
+                    DA2008 = rep(NA, length(Codigo)),
+                    DA2009 = rep(NA, length(Codigo)),
+                    DA2010 = rep(NA, length(Codigo)),
+                    DA2011 = rep(NA, length(Codigo)),
+                    DA2012 = rep(NA, length(Codigo)),
+                    DA2013 = rep(NA, length(Codigo)),
+                    DA2014 = rep(NA, length(Codigo)),
+                    DA2017 = rep(NA, length(Codigo)),
+                    DA2018 = rep(NA, length(Codigo)), stringsAsFactors = F)
+names(semDou) = names(Doutorado)
+SoMestrado = cbind(SoMes,semDou)
+
+## Todos juntos
+
+SoDoutorado = SoDoutorado[,-19]
+SoMestrado = SoMestrado[,-19]
+TodosJuntos = rbind(DouMes,SoMestrado, SoDoutorado)
+
+## Adicionando o nome da faculdade
+names(facul) = c("Codigo", "Instituicao")
+TodosJuntoss = merge(facul, TodosJuntos, by.x = "Codigo", by.y = "Codigo" )
+faltante = facul[-which(facul$Codigo %in% TodosJuntoss$Codigo),]
+fal = data.frame(fal = c(faltante, rep(NA, 34)), stringsAsFactors = F)
+names(fal) = names(TodosJuntoss)
+TodosJuntoss = rbind(TodosJuntoss,fal)
+
+## Gravando o novo Dataset
+
+write.xlsx(TodosJuntoss, "TabelaEvolucaoDetalhada.xlsx")
+
+```
+
+
+## lista professor
+
+```{r}
+erica_planilha <- read_excel("~/Estatística/PIBIC/Pos-graduacao/data/Érica - planilha.xls")
+facul = erica_planilha[,c(1,3)]
+
+```
+
+# Demais informações
+
+```{r}
+TabelaEvolucaoUnica <- read_excel("~/Estatística/PIBIC/Pos-graduacao/src/TabelaEvolucaoUnica.xlsx")
+> View(TabelaEvolucaoUnica)
+```
+
+
+```{r}
+
+tabela = lapply(listaconteudo, function(dado){
+  
+  a = lapply(c(3,5,7,9,11,17), function(x){
+  Q = dado[[1]][[x]]%>% data.frame()
+  factor(Q[,ncol(Q)], levels = c("Deficiente","Fraco","Regular","Bom","Muito Bom"), labels = c("D", "F", "R", "B","MB"))
+})
+  
+b = a %>% unlist()  %>% matrix(nrow = 1) 
+
+
+ # Preparando id para identificação sem "()"
+  id = dado[[2]] %>% 
+    strsplit(" ") %>% 
+    unlist()
+  id = id[length(id)] %>% 
+    gsub(pattern = "\\(", replacement = "") %>% 
+    gsub(pattern = "\\)", replacement = "")
+  
+b = matrix(c(id, b),nrow = 1)
+})
+tabelares = do.call(rbind, tabela)
+
+
+colnames(tabelares) = c(	"Codigo", "Q1.1",	"Q1.2", "Q1.3",	
+                         "Q2.1",	"Q2.2",	"Q2.3",	"Q2.4",	
+                         "Q3.1",	"Q3.2",	"Q3.3", "Q3.4",	
+                         "Q4.1",	"Q4.2",	"Q4.3",	"Q4.4", 
+                         "Q5.1",	"Q5.2",	"Q5.3", "PropostaDoPrograma", "CorpoDocente", "CorpoDiscenteTD", "ProducaoIntelectual","InsercaoSocial")
+
+Tabela = data.frame(tabelares, stringsAsFactors = F)
+
+for(i in 2:24){
+  Tabela[,i] = factor(Tabela[,i], levels = c("D", "F", "R", "B","MB"))
+}
+
+Tabela = Tabela %>% select(Codigo, 
+                           PropostaDoPrograma, Q1.1,	Q1.2, Q1.3, 
+                            CorpoDocente, Q2.1,	Q2.2,	Q2.3,	Q2.4, 
+                           CorpoDiscenteTD, Q3.1,	Q3.2,	Q3.3, Q3.4, 
+                           ProducaoIntelectual, Q4.1,Q4.2,	Q4.3,	Q4.4, 
+                           InsercaoSocial, Q5.1,Q5.2,	Q5.3)
+
+partePla = erica_planilha[,1:6]
+Tabelaa = merge(partePla,Tabela,  
+               by.x = "Código do Programa", by.y = "Codigo" )
+MestDou = TabelaEvolucaoUnica[,c(2,5)]
+teste = rbind.data.frame(MestDou, c("33001014017P3", "Mestrado/Doutorado"))
+Tabelaa = merge(Tabelaa, teste, by.x = "Código do Programa", by.y = "Código do Programa")
+Tabella = data.frame(Tabelaa[,1:6], Tabelaa[,30], Tabelaa[,7:29])
+
+## Transformando a planilha em números
+Tabella2 = Tabella
+for (i in 8:30){
+  Tabella2[,i] = as.numeric(Tabella2[,i])
+}
+
+```
+
+
+
+```{r}
+#write.xlsx(Tabella, "PlanilhaCompleta.xlsx")
+#write.xlsx(Tabella2, "PlanilhaCompletaNumerica.xlsx")
+```
+
+
+### NOta geral
+
+```{r}
+notageral = lapply(listaconteudo, function(dado){
+    
+  id = dado[[2]] %>% 
+    strsplit(" ") %>% 
+    unlist()
+  id = id[length(id)] %>% 
+    gsub(pattern = "\\(", replacement = "") %>% 
+    gsub(pattern = "\\)", replacement = "")
+  
+  ## Identificando em qual posição está a nota final
+
+indice = dado[[1]] %>% grepl(pattern = "COMISSÃO")
+indice = which(indice == TRUE)
+nt = dado[[1]][[indice-1]] %>% 
+  unlist()
+nt = nt %>% as.numeric() %>% max(na.rm = T)
+
+data.frame(id, nt, stringsAsFactors = F)
+})
+
+notageral = do.call(rbind, notageral)
+
+```
+
+### Comentários gerais
+
+```{r}
+texto = lapply(links$link, function(x){
+  a  = paste0("https://sucupira.capes.gov.br",x)  %>% 
+  read_html()
+b = a %>% 
+  html_nodes(xpath =  "//*[@id='form:j_idt60:content']/div/div/text()")
+d = b %>% html_text()
+e = sapply(d, nchar)
+names(e) = NULL
+e = e %>% sort(decreasing = T) %>% head(5)
+textos = d[nchar(d) >= min(e)]
+textos = textos %>% 
+  str_remove_all("\n") %>% 
+  str_remove_all("\r")
+
+
+
+  id = a %>% html_nodes(".col-md-10") %>% .[2] %>%  html_text() %>% strsplit(" \\(") %>% unlist() %>% str_replace_all(pattern = " ", replacement = "") %>% str_replace_all("\\)\n", "")
+
+matrix(c(id[2],textos), nrow = 1)
+})
+tabtexto = do.call(rbind, texto)
+colnames(tabtexto) = c("id", "textoPP", "textoCDo", "textoCDi", "textoPI","textoIS")
+tabtexto = data.frame(tabtexto, stringsAsFactors = F)
+```
+
+
+## Juntando todas as informações
+
+```{r}
+tab = merge(PlanilhaCompletaNumerica, notageral, by.x = "Código.do.Programa", by.y = "id")
+
+tab = merge(tab, tabtexto, by.x = "Código.do.Programa", by.y ="id" )
+
+tab = data.frame(tab[,1:7], tab$nt, tab[,8:30], tab[,32:36], stringsAsFactors = F)
+names(tab)[7:8] = c("TipoPrograma","NotaGeral")
+```
+
+```{r}
+UFSFAC <- read.csv("~/Estatística/PIBIC/Pos-graduacao/data/UFSFAC.csv", sep = ",", stringsAsFactors = F)
+tab2 = merge(UFSFAC,tab,  by.x = "SigladaIES", by.y = "Sigla.da.IES")
+tab2= tab2 %>% arrange(NotaGeral)
+write.csv(tab2, "completissima.csv")
+```
+

@@ -1,0 +1,120 @@
+---
+title: "teste"
+author: "Érika S. Machado"
+date: "5 de junho de 2019"
+output:  
+  html_document: 
+    code_folding: hide
+---
+
+```{r}
+##Biliotecas usadas
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+
+
+## Importando dados
+
+```{r}
+dados = read_table2("~/Estatística/PIBIC/Pos-graduacao/dadosCAPES.txt")
+dados = dados[,-1]
+dados  %>% kable() %>%  kable_styling() %>%
+  scroll_box( height = "200px")
+```
+
+## Aplicando Modelo Completo
+
+```{r, warning=FALSE}
+modelocompleto = glm(NotaGeral~ ., family=binomial(link="logit"), 
+                     control = list(maxit = 50), data= dados )
+
+summary(modelocompleto)
+```
+
+Anova
+```{r, warning=FALSE}
+  anova(modelocompleto, test="Chisq")
+```
+
+## Seleção de variáveis segundo Hosmer e Lemeshow (1989,p.86)
+
+Segundo Hosmer e Lemeshow "toda covariável que tiver um p-valor menor ou igual a 0,25 deve ser considerada como uma candidata para o modelo múltiplo junto com todas as variáveis de importância conhecidas". Dessa forma consideraremos significativas as variáveis que possuirem $p\leq0.25$
+
+```{r}
+modeloHL = glm(NotaGeral ~ Q1.1+ Q1.2+Q2.1+Q3.3+Q3.4+Q4.1, 
+               family=binomial(link="logit"),
+               control = list(maxit = 50), 
+               data= dados )
+
+summary(modeloHL)
+```
+
+Anova
+
+```{r}
+anova(modeloHL, test="Chisq")
+```
+
+## Seleção de variáveis usando stepwise
+
+
+```{r, warning=FALSE}
+modelostep = step(modelocompleto, trace = F)
+
+modelostep %>% summary()
+
+```
+
+Anova
+```{r}
+anova(modelostep, test="Chisq")
+```
+
+```{r}
+data.frame(Dominio = c("Q1.2", "Q1.3", "Q2.4", "Q3.1", "Q3.3", "Q3.4", "Q4.3", "Q5.3"),
+           Significado = c("Planejamento do programa com vistas a seu desenvolvimento futuro, contemplando os desafios internacionais da área na produção do conhecimento, seus propósitos na melhor formação de seus alunos, suas metas quanto à inserção social mais rica dos seus egressos, conforme os parâmetros da área.",
+                           "Infraestrutura para ensino, pesquisa e, se for o caso, extensão.",
+                           "Contribuição dos docentes para atividades de ensino e/ou de pesquisa na graduação, com atenção tanto à repercussão que este item pode ter na formação de futuros ingressantes na PG, quanto (conforme a área) na formação de profissionais mais capacitados no plano da graduação. Obs.: este item só vale quando o PPG estiver ligado a curso de graduação; se não o estiver, seu peso será redistribuído proporcionalmente entre os demais itens do quesito.",
+                           "Quantidade de teses e dissertações defendidas no período de avaliação, em relação ao corpo docente permanente e à dimensão do corpo discente.",
+                           "Qualidade das Teses e Dissertações e da produção de discentes autores da pós-graduação e da graduação (no caso de IES com curso de graduação na área) na produção científica do programa, aferida por publicações e outros indicadores pertinentes à área.",
+                           "Eficiência do Programa na formação de mestres e doutores bolsistas: Tempo de formação de mestres e doutores e percentual de bolsistas titulados.",
+                           "Produção técnica, patentes e outras produções consideradas relevantes.",
+                           "Visibilidade ou transparência dada pelo programa a sua atuação")) %>% 
+  kable() %>%  kable_styling()
+```
+
+## Avaliação da qualidade do ajuste
+
+```{r}
+cbind(modelostep$fitted.values, modelostep$y)
+```
+
+```{r}
+dev<-residuals(modelostep, type='deviance')
+   dev
+   QL<-sum(dev^2)
+   p1<-1-pchisq(QL,40)
+   cbind(QL,p1)
+
+```
+
+```{r}
+   rpears<-residuals(modelostep, type='pearson')
+   rpears
+   QP<-sum(rpears^2)
+   p2<-1-pchisq(QP,40)
+   cbind(QP,p2)
+```
+
+```{r}
+   par(mfrow=c(1,2))
+   plot(rpears, pch=16, ylim=c(-0.5,0.5), ylab="Residuos de Pearson")
+   abline(h=0, lty=3)
+   plot(dev, pch=16, ylim=c(-0.5,0.5), ylab="Residuos deviance")
+   abline(h=0, lty=3)
+```
+

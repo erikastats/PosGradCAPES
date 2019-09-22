@@ -1,0 +1,349 @@
+---
+title: "Análise estatística CAPES"
+author: "Érika S. Machado"
+date: "3 de junho de 2019"
+output:  
+  html_document: 
+    code_folding: hide
+---
+
+```{r, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(DT)
+library(knitr)
+library(kableExtra)
+
+Completa = read.csv("~/Estatística/PIBIC/Pos-graduacao/data/completissima.csv", stringsAsFactors = F)
+Completa = Completa[,-1]
+```
+
+# Dados com todas as notas
+
+Considerando as notas como $n_i$, sendo:  
+$$\begin{cases}
+    1       & \quad \text{se } n_i \geq 4\\
+    0  & \quad \text{se } n_i <  4
+  \end{cases}$$  
+
+
+
+```{r, echo=FALSE}
+#Acrescentando novas variáveis pra indicar se tem Mestrado/Doutorado
+
+
+dadosdimi = Completa[,c(10,11,13:15,17:20,22:25,27:29,32:34)]
+
+## Modificando as notas para uma variável binária
+dadosdimi$NotaGeral = ifelse(dadosdimi$NotaGeral >= 4,1,0)
+## Acrescentando Variáveis Mest e Dout
+
+dadosdimi %<>% mutate(Mest = ifelse(grepl(pattern = "Mestrado", dadosdimi$TipoPrograma), 1,0),
+                      Dout = ifelse(grepl(pattern = "Doutorado", dadosdimi$TipoPrograma),1,0))
+dadosdimi %<>% mutate(Sim = ifelse(dadosdimi$NotaGeral == 1, 1, 0),
+                       Nao = ifelse(dadosdimi$NotaGeral == 0, 1, 0))
+
+#dadosdimi %>% datatable()
+```
+
+
+### Segundo o livro da Suely Ruiz Giolo
+```{r}
+## Gerando tabela de frequência para todos os subdomínios com separação de Mestrado e Doutorado
+tabFreqsd = lapply(3:19, function(a){
+
+
+b = aggregate(dadosdimi[,22:23], by = list(dadosdimi[,a], 
+                               dadosdimi$Mest, dadosdimi$Dout), FUN = sum)
+b %<>% mutate(SubDomin = rep(names(dadosdimi)[a], nrow(b)))
+
+})
+
+
+tabFreqsdCompleta = do.call(rbind, tabFreqsd)
+names(tabFreqsdCompleta)[1:3] = c("RespSubDomin", "Mest", "Dout")
+tabFreqsdCompleta$SubDomin = factor(tabFreqsdCompleta$SubDomin) 
+
+tabFreqsdCompleta %>% datatable()
+```
+
+
+
+```{r}
+## Gerando tabela de frequência para todos os subdomínios com separação de Mestrado e Doutorado
+tabFreqsd2 = lapply(3:19, function(a){
+
+
+b = aggregate(dadosdimi[,2], by = list(dadosdimi[,a], 
+                               dadosdimi$Mest, dadosdimi$Dout), FUN = sum)
+b %<>% mutate(SubDomin = rep(names(dadosdimi)[a], nrow(b)))
+
+})
+
+tabFreqsdCompleta %<>% mutate(Totais = tabFreqsdCompleta$Sim + tabFreqsdCompleta$Nao)
+tabFreqsdCompleta %<>% mutate(theta = tabFreqsdCompleta$Sim/ tabFreqsdCompleta$Totais)
+
+tabFreqsdCompleta2 = do.call(rbind, tabFreqsd2)
+names(tabFreqsdCompleta2)[1:4] = c("RespSubDomin", "Mest", "Dout","NotaGeral")
+tabFreqsdCompleta2$SubDomin = factor(tabFreqsdCompleta2$SubDomin) 
+
+```
+
+O Theta na tabela representa os valores estimados de E(Y/x), sendo que
+$$E(Y/x)=0XP(Y=0/x)+1XP(Y=1/x)$$
+
+```{r, include=FALSE}
+dadossemna = dadosdimi[, -c(1, 20:23)] %>% na.omit()
+#dadossemna %>% datatable()
+
+
+dados = read_table2("~/Estatística/PIBIC/Pos-graduacao/dadosCAPES.txt")
+dados = dados[,-1]
+
+```
+
+```{r}
+dados  %>% kable() %>%  kable_styling() %>%
+  scroll_box( height = "200px")
+```
+
+
+## Modelos
+
+### Modelo Completo
+
+```{r, warning=FALSE}
+modelocompleto = glm(NotaGeral~ ., family=binomial(link="logit"), 
+                     control = list(maxit = 50), data= dadossemna )
+
+summary(modelocompleto)
+
+```
+
+glm() uses an iterative re-weighted least squares algorithm. The algorithm hit the maximum number of allowed iterations before signalling convergence. The default, documented in ?glm.control is 25
+
+
+Anova
+```{r, warning=FALSE}
+   anova(modelocompleto, test="Chisq")
+```
+
+
+#### Seleção de variáveis segundo Hosmer e Lemeshow (1989,p.86)
+
+Segundo Hosmer e Lemeshow "toda covariável que tiver um p-valor menor ou igual a 0,25 deve ser considerada como uma candidata para o modelo múltiplo junto com todas as variáveis de importância conhecidas". Dessa forma consideraremos significativas as variáveis que possuirem $p\leq0.25$
+
+```{r, warning=FALSE}
+modeloHL = glm(NotaGeral ~ Q1.1+ Q1.2+Q2.1+Q3.3+Q3.4+Q4.1, 
+               family=binomial(link="logit"),
+               control = list(maxit = 50), 
+               data= dadossemna )
+
+summary(modeloHL)
+```
+
+Anova
+
+```{r}
+anova(modeloHL, test="Chisq")
+```
+
+Não podemos confiar nessa seleção, pois se mudarmos as colunas do dataset de posição, é fornecido um modelo com diferentes coeficientes
+
+
+```{r, warning=FALSE}
+set.seed(3)
+anova(glm(NotaGeral~ ., family=binomial(link="logit"), 
+                     control = list(maxit = 50), data= dadossemna[sample(1:18)] ), test="Chisq")
+
+
+
+# dadossemnafactor = dadossemna
+# for (i in 2:18){ dadossemnafactor[,i] = factor(dadossemnafactor[,i])}
+```
+
+
+#### Seleção de variáveis segundo método stepwise
+
+```{r, warning=FALSE}
+modelostep = step(modelocompleto, trace = F)
+
+modelostep %>% summary()
+
+```
+
+Anova
+```{r}
+anova(modelostep, test="Chisq")
+```
+
+Escolheremos o modelostep
+
+### Verificando os valores previstos com os valores de entrada
+```{r}
+   
+# Verificando os valores previstos com os valores de entrada
+  cbind(modelostep$fitted.values, modelostep$y) %>% kable() %>%  kable_styling() %>%
+  scroll_box( height = "200px")
+
+
+```
+
+### Tabela de deviance
+
+```{r}
+
+   dev<-residuals(modelostep, type='deviance')
+   dev %>% kable() %>%  kable_styling() %>%
+  scroll_box( height = "200px")
+   
+
+```
+
+### Qui-quadrado deviance/ QUi-quadrado da razão de verossimilhança
+
+```{r}
+
+   QL<-sum(dev^2)
+   p1<-1-pchisq(QL,2)
+   cbind(QL,p1) 
+   
+
+```
+
+# Estatística Qui-quadrado de Pearson
+```{r}
+
+   rpears<-residuals(modelostep, type='pearson')
+   rpears %>% kable() %>%  kable_styling() %>%
+  scroll_box( height = "200px")
+   QP<-sum(rpears^2)
+   p2<-1-pchisq(QP,2)
+   cbind(QP,p2) 
+
+
+```
+
+# Plotando Deviance 
+```{r}
+
+   par(mfrow=c(1,2))
+   plot(dev, pch=16, ylim=c(-3,3), ylab="Resíduos deviance")
+   abline(h=0, lty=3)
+   plot(rpears, pch=16, ylim=c(-3,3), ylab="Resíduos Pearson")
+   abline(h=0, lty=3)
+```
+
+
+######################################
+
+# Escolhendo somente os dados com nota geral 3 e 4
+
+```{r, warning=FALSE}
+dados2 = Completa %>% filter(NotaGeral %in% c(3,4)) 
+dados2 = dados2[, names(dados2) %in% names(dados)] %>% na.omit()
+dados2$NotaGeral = ifelse(dados2$NotaGeral == 3, 0, 1)
+
+
+# Modelagem com os novos dados
+
+modeloCD2 = glm(NotaGeral~ ., family=binomial(link="logit"), 
+                data= dados2 )
+
+summary(modeloCD2)
+anova(modeloCD2, test="Chisq")
+
+# Seleção por step 
+
+stepCD2 = step(modeloCD2, trace = F)
+stepCD2 %>% anova(test = "Chisq")
+```
+
+
+#####################################################
+# Escolhendo somente os dados com nota geral 4 e 5
+
+```{r, warning=FALSE}
+
+dados3 = Completa %>% filter(NotaGeral %in% c(4,5)) 
+dados3 = dados3[, names(dados3) %in% names(dados)] %>% na.omit()
+dados3$NotaGeral = ifelse(dados3$NotaGeral == 4, 0, 1)
+
+
+# Modelagem com os novos dados
+
+modeloCD3 = glm(NotaGeral~ ., family=binomial(link="logit"), 
+                data= dados3 )
+
+summary(modeloCD3)
+anova(modeloCD3, test="Chisq")
+
+# Seleção por step 
+
+stepCD3 = step(modeloCD3, trace = F)
+stepCD3 %>% anova(test = "Chisq")
+```
+
+
+#####################################################
+# Escolhendo somente os dados com nota geral 5 e 6
+
+```{r, warning=FALSE}
+dados4 = Completa %>% filter(NotaGeral %in% c(5,6)) 
+dados4 = dados4[, names(dados4) %in% names(dados)] %>% na.omit()
+dados4$NotaGeral = ifelse(dados4$NotaGeral == 5, 0, 1)
+
+
+# Modelagem com os novos dados
+
+modeloCD4 = glm(NotaGeral~ ., family=binomial(link="logit"), 
+                data= dados4 )
+
+summary(modeloCD4)
+anova(modeloCD4, test="Chisq")
+
+# Seleção por step 
+
+stepCD4 = step(modeloCD4, trace = F)
+stepCD4 %>% anova(test = "Chisq")
+```
+
+
+
+
+#####################################################
+# Escolhendo somente os dados com nota geral 6 e 7
+
+```{r, warning=FALSE}
+dados5 = Completa %>% filter(NotaGeral %in% c(6,7)) 
+dados5 = dados5[, names(dados5) %in% names(dados)] %>% na.omit()
+dados5$NotaGeral = ifelse(dados5$NotaGeral == 6, 0, 1)
+
+
+# Modelagem com os novos dados
+
+modeloCD5 = glm(NotaGeral~ ., family=binomial(link="logit"), 
+                data= dados5 )
+
+summary(modeloCD5)
+anova(modeloCD5, test="Chisq")
+
+# Seleção por step 
+
+stepCD5 = step(modeloCD5, trace = F)
+stepCD5 %>% anova(test = "Chisq")
+
+```
+
+
+## Todos os modelos
+
+```{r}
+modelostep
+stepCD2
+stepCD3
+stepCD4
+stepCD5
+```
+
+

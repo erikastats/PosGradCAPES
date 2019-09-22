@@ -1,0 +1,312 @@
+---
+title: "Análise estatística CAPES"
+author: "Érika S. Machado"
+date: "3 de junho de 2019"
+output: 
+  html_document: 
+    code_folding: hide
+---
+
+```{r, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(magrittr)
+#library(DT)
+library(knitr)
+library(kableExtra)
+
+Completa = read.csv("~/Erika/PIBIC/Pos-graduacao/data/completissima.csv", stringsAsFactors = F)
+Completa = Completa[,-1]
+```
+
+# Dados com todas as notas
+
+Considerando as notas como $n_i$, sendo:  
+$$\begin{cases}
+    1       & \quad \text{se } n_i \geq 4\\
+    0  & \quad \text{se } n_i <  4
+  \end{cases}$$  
+Acrescentando novas variáveis pra indicar se tem Mestrado/Doutorado
+
+
+```{r, echo=FALSE}
+dadosdimi = Completa[,c(10,11,13:15,17:20,22:25,27:29,32:34)]
+
+## Modificando as notas para uma variável binária
+dadosdimi$NotaGeral = ifelse(dadosdimi$NotaGeral >= 4,1,0)
+## Acrescentando Variáveis Mest e Dout
+
+dadosdimi %<>% mutate(Mest = ifelse(grepl(pattern = "Mestrado", dadosdimi$TipoPrograma), 1,0),
+                      Dout = ifelse(grepl(pattern = "Doutorado", dadosdimi$TipoPrograma),1,0))
+dadosdimi %<>% mutate(Sim = ifelse(dadosdimi$NotaGeral == 1, 1, 0),
+                       Nao = ifelse(dadosdimi$NotaGeral == 0, 1, 0))
+
+dadosdimi %>% kable() %>%  kable_styling() %>%
+  scroll_box( height = "200px")
+```
+
+
+## Segundo o livro da Suely Ruiz Giolo
+```{r}
+## Gerando tabela de frequência para todos os subdomínios com separação de Mestrado e Doutorado
+tabFreqsd = lapply(3:19, function(a){
+
+
+b = aggregate(dadosdimi[,22:23], by = list(dadosdimi[,a], 
+                               dadosdimi$Mest, dadosdimi$Dout), FUN = sum)
+b %<>% mutate(SubDomin = rep(names(dadosdimi)[a], nrow(b)))
+
+})
+
+
+tabFreqsdCompleta = do.call(rbind, tabFreqsd)
+names(tabFreqsdCompleta)[1:3] = c("RespSubDomin", "Mest", "Dout")
+tabFreqsdCompleta$SubDomin = factor(tabFreqsdCompleta$SubDomin) 
+
+tabFreqsdCompleta %>% kable() %>%  kable_styling() %>%
+  scroll_box( height = "200px")
+```
+
+
+
+```{r}
+## Gerando tabela de frequência para todos os subdomínios com separação de Mestrado e Doutorado
+tabFreqsd2 = lapply(3:19, function(a){
+
+
+b = aggregate(dadosdimi[,2], by = list(dadosdimi[,a], 
+                               dadosdimi$Mest, dadosdimi$Dout), FUN = sum)
+b %<>% mutate(SubDomin = rep(names(dadosdimi)[a], nrow(b)))
+
+})
+
+tabFreqsdCompleta %<>% mutate(Totais = tabFreqsdCompleta$Sim + tabFreqsdCompleta$Nao)
+tabFreqsdCompleta %<>% mutate(theta = tabFreqsdCompleta$Sim/ tabFreqsdCompleta$Totais)
+
+tabFreqsdCompleta2 = do.call(rbind, tabFreqsd2)
+names(tabFreqsdCompleta2)[1:4] = c("RespSubDomin", "Mest", "Dout","NotaGeral")
+tabFreqsdCompleta2$SubDomin = factor(tabFreqsdCompleta2$SubDomin) 
+
+```
+
+O Theta na tabela representa os valores estimados de E(Y/x), sendo que
+$$E(Y/x)=0XP(Y=0/x)+1XP(Y=1/x)$$
+
+```{r}
+dadossemna = dadosdimi[, -c(1, 20:23)] %>% na.omit()
+dadossemna %>% kable() %>% kable_styling() %>%
+  scroll_box( height = "200px")
+```
+
+
+
+## Modelos
+
+### Modelo Completo
+
+```{r}
+modelocompleto = glm(NotaGeral~ ., family=binomial(link="logit"), 
+                     control = list(maxit = 50), data= dadossemna )
+
+summary(modelocompleto)
+
+```
+
+glm() uses an iterative re-weighted least squares algorithm. The algorithm hit the maximum number of allowed iterations before signalling convergence. The default, documented in ?glm.control is 25
+
+
+Anova
+```{r, warning=FALSE}
+   anova(modelocompleto, test="Chisq")
+```
+
+```{r}
+set.seed(3)
+anova(glm(NotaGeral~ ., family=binomial(link="logit"), 
+                     control = list(maxit = 50), data= dadossemna[sample(1:18)] ), test="Chisq")
+
+
+
+dadossemnafactor = dadossemna
+for (i in 2:18){ dadossemnafactor[,i] = factor(dadossemnafactor[,i])}
+```
+
+
+#### Seleção de variáveis segundo Hosmer e Lemeshow (1989,p.86)
+
+Segundo Hosmer e Lemeshow "toda covariável que tiver um p-valor menor ou igual a 0,25 deve ser considerada como uma candidata para o modelo múltiplo junto com todas as variáveis de importância conhecidas". Dessa forma consideraremos significativas as variáveis que possuirem $p\leq0.25$
+
+```{r}
+modeloHL = glm(NotaGeral ~ Q1.1+ Q1.2+Q2.1+Q3.3+Q3.4+Q4.1, 
+               family=binomial(link="logit"),
+               control = list(maxit = 50), 
+               data= dadossemna )
+
+summary(modeloHL)
+```
+
+Anova
+
+```{r}
+anova(modeloHL, test="Chisq")
+```
+
+#### Seleção de variáveis segundo método stepwise
+
+```{r, warning=FALSE}
+modelostep = step(modelocompleto, trace = F)
+
+modelostep %>% summary()
+
+```
+
+Anova
+```{r}
+anova(modelostep, test="Chisq")
+```
+
+```{r}
+data.frame(Dominio = c("Q1.2", "Q1.3", "Q2.4", "Q3.1", "Q3.3", "Q3.4", "Q4.3", "Q5.3"),
+           Significado = c("Planejamento do programa com vistas a seu desenvolvimento futuro, contemplando os desafios internacionais da área na produção do conhecimento, seus propósitos na melhor formação de seus alunos, suas metas quanto à inserção social mais rica dos seus egressos, conforme os parâmetros da área.",
+                           "Infraestrutura para ensino, pesquisa e, se for o caso, extensão.",
+                           "Contribuição dos docentes para atividades de ensino e/ou de pesquisa na graduação, com atenção tanto à repercussão que este item pode ter na formação de futuros ingressantes na PG, quanto (conforme a área) na formação de profissionais mais capacitados no plano da graduação. Obs.: este item só vale quando o PPG estiver ligado a curso de graduação; se não o estiver, seu peso será redistribuído proporcionalmente entre os demais itens do quesito.",
+                           "Quantidade de teses e dissertações defendidas no período de avaliação, em relação ao corpo docente permanente e à dimensão do corpo discente.",
+                           "Qualidade das Teses e Dissertações e da produção de discentes autores da pós-graduação e da graduação (no caso de IES com curso de graduação na área) na produção científica do programa, aferida por publicações e outros indicadores pertinentes à área.",
+                           "Eficiência do Programa na formação de mestres e doutores bolsistas: Tempo de formação de mestres e doutores e percentual de bolsistas titulados.",
+                           "Produção técnica, patentes e outras produções consideradas relevantes.",
+                           "Visibilidade ou transparência dada pelo programa a sua atuação")) %>% 
+  kable() %>%  kable_styling()
+```
+
+
+
+
+
+#### Seleção de variáveis segundo Random Forest
+
+Floresta Aleatória (random forest) é um algoritmo de aprendizagem supervisionada. Como você pode perceber pelo seu nome, ele cria uma floresta de um modo aleatório. A “floresta” que ele cria é uma combinação (ensemble) de árvores de decisão, na maioria dos casos treinados com o método de bagging. A idéia principal do método de bagging é que a combinação dos modelos de aprendizado aumenta o resultado geral.
+
+```{r}
+library(randomForest)
+m = round(sqrt(ncol(dadossemna)))
+
+### Descobrindo a ordem das variáveis
+
+florestas = sapply(1:5000, function(i){
+  set.seed(i)
+  floresta = randomForest(NotaGeral ~ ., data = dadossemna,
+                          mtry = m,
+                          importance = TRUE)
+  floresta$importanceSD %>% sort(decreasing = T) %>% names()
+})
+segunda = apply(florestas, 1, function(x){table(x) %>% sort(decreasing = T)})
+
+###
+set.seed(100)
+floresta = randomForest(NotaGeral ~ ., data = dadossemna,
+                        mtry = m,
+                        importance = TRUE)
+varImpPlot(floresta)
+set.seed(100)
+indice = sample(c("trein","teste"),49, prob = c(0.7,0.3),replace = T)
+
+floresta.predicao.teste = predict(floresta, 
+                                  newdata = dadossemna[indice %in% "teste",])
+mean(dadossemna[indice %in% "teste",1] !=floresta.predicao.teste)
+
+mean(dadossemna[indice %in% "teste",1] != round(floresta.predicao.teste))
+
+```
+
+```{r}
+modeloFloresta = glm(NotaGeral ~ Q4.1+ Q5.3+ Q5.1+Q2.1+Q2.2+Q1.2+Q1.1+Q4.2+Q4.3+
+                       Q2.3+Q3.2+Q3.1+Q3.3+Q1.3+Q5.2+Q2.4+Q3.4, 
+                     family=binomial(link="logit"),
+                     control = list(maxit = 50), 
+                     data= dadossemna )
+anova(modeloFloresta, test="Chisq")
+```
+
+```{r}
+step(modeloFloresta, trace = F)
+```
+
+
+###Escolheremos o modelostep
+
+Razão de chances
+```{r}
+OR = exp(modelostep$coefficients) %>% sort(decreasing = T)
+OR
+```
+
+Intervalos de 95% de confiança para os parâmetros do modelo, com base na estatística de Wald
+```{r}
+ICbeta1=confint.default(modelostep,level=0.95)
+ICbeta1
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+   
+# Verificando os valores previstos com os valores de entrada
+  cbind(modelostep$fitted.values, modelostep$y)
+
+# Tabela de deviance
+   dev<-residuals(modelostep, type='deviance')
+   dev
+   
+# Qui-quadrado deviance/ QUi-quadrado da razão de verossimilhança
+   QL<-sum(dev^2)
+   p1<-1-pchisq(QL,2)
+   cbind(QL,p1)
+   
+# Estatística Qui-quadrado de Pearson
+   rpears<-residuals(modelostep, type='pearson')
+   rpears
+   QP<-sum(rpears^2)
+   p2<-1-pchisq(QP,2)
+   cbind(QP,p2)
+
+# Plotando Deviance 
+   par(mfrow=c(1,2))
+   plot(dev, pch=16, ylim=c(-3,3), ylab="Resíduos deviance")
+   abline(h=0, lty=3)
+   plot(rpears, pch=16, ylim=c(-3,3), ylab="Resíduos Pearson")
+   abline(h=0, lty=3)
+```
+
+```{r}
+library(Epi)
+
+ROC(form = NotaGeral ~ Q1.2 + Q1.3 + Q2.4 + Q3.1 + Q3.3 + 
+        Q3.4 + Q4.3 + Q5.3,  plot="ROC", data = dadossemna,  
+    control = list(maxit = 50))
+```
+
+```{r}
+  source("https://docs.ufpr.br/~giolo/LivroADC/Funcoes/gof_bino.txt")
+   gof.bino(modelostep, grupos=5)
+   library(ROCR)
+   pred <- prediction(modelostep$fitted.values,dadossemna$NotaGeral)
+   pred
+   perf <- performance(pred,"tpr","fpr") 
+   perf  
+   
+   plot(perf);abline(c(0,0),c(1,1),lty=3);points(0.324,0.756, pch=20, col=2)
+   area <- performance(pred,"auc"); area
+```
+
+
+
