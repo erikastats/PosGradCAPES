@@ -1,0 +1,40 @@
+### An?lise dos ddos de emprego Estat?stica
+
+dados = read.csv("Tabela_dados2", header = T, encoding = "UTF-8")
+
+## Bibliotecas
+library(ggplot2)
+library(dplyr)
+library(Col)
+
+### 10 Cidades com maior quantidade de emprego
+Cidadesmais = head(sort(summary(dados$Cidade), decreasing = T),5)
+b = barplot(Cidadesmais, main = "Quantidade de vagas nas 5 cidades mais ofertadas",
+        col = c("grey10", "grey40","grey40","grey40","grey40"),
+        ylim = c(0,145), col.main = "grey30", adj = 0,
+        border = "white", axes = F,col.axis = c("grey30")) 
+text(b, Cidadesmais , Cidadesmais,cex=1,pos=3, col = c("grey10", "grey40","grey40","grey40","grey40"))
+
+### Quais ferramentas mais usadas
+
+ggplot(dados, aes(x=Cidade ), fill = Excel) + geom_bar()
+
+
+### Ingles x Cidade
+
+### N?vel Hier?rquico com mais vagas
+dados$Nivel_hierarquico = factor(dados$Nivel_hierarquico, ordered = TRUE, 
+                                 levels = c("Auxiliar/Operacional", "Est?gio" ,
+                                            "T?cnico",  "J?nior/Trainee", "Pleno" ,
+                                            "S?nior", "Ger?ncia", "Supervis?o/Coordena??o" ) )
+te = summary(dados$Nivel_hierarquico)
+te
+ggplot(dados, aes(x=Nivel_hierarquico )) + 
+  geom_bar(position = 'dodge', stat='identity') +
+  ggtitle("Quantidade de vagas por N?vel Hier?rquico") +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
+  geom_text(aes(x=Nivel_hierarquico, y = te, label=te), position=position_dodge(width=0.9), vjust=-0.25)
+
+
+?ggplot
+### Nomes mais comuns com vagas para Estat?sticos

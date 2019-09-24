@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1569185951767.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "656238744",
+    "id" : "2824B62E",
+    "lastKnownWriteTime" : 1560106450,
+    "last_content_update" : 1560106450,
+    "path" : "~/Projetos Érika/PosGradCAPES/src/Análise Descritiva.Rmd",
+    "project_path" : "src/Análise Descritiva.Rmd",
+    "properties" : {
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

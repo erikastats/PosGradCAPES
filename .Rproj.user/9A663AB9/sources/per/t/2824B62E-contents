@@ -1,0 +1,726 @@
+---
+title: "Análise descritiva dos dados"
+author: "Érika S. Machado"
+date: "23 de abril de 2019"
+output:  
+  rmdformats::readthedown:
+    highlight: kate
+     #self_contained: TRUE
+     #code_folding: hide
+
+---
+
+```{r Bibliotecas}
+library(tidyverse)
+library(readxl)
+library(knitr)
+library(kableExtra)
+library(brazilmaps)
+library(plotly)
+library(rgdal)
+library(stringr)
+library(reshape)
+
+
+
+source("C:/Users/ErikaS/Documents/Estatística/PIBIC/Pos-graduacao/src/ParseCAPES.R")
+```
+
+# Tabela Evolução Das Notas
+
+```{r Importando o dataset}
+TabelaEvolucaoDetalhada <-  read.csv("~/Estatística/PIBIC/Pos-graduacao/src/TabelaEvolucaoDetalhada.csv", stringsAsFactors = F)
+TabelaEvolucaoDetalhada = TabelaEvolucaoDetalhada[,-1]
+
+
+#TabelaEvolucaoDetalhada$SiglaRegigao = factor(TabelaEvolucaoDetalhada$Regiao, levels = c("Centro-Oeste",     "Distrito Federal", "Nordeste", "Norte",            "Sudeste",          "Sul"), labels = c("CO", "DF", "NE", "NO", "SE", "S") )
+#UFSFAC <- read.csv("~/Estatística/PIBIC/Pos-graduacao/data/UFSFAC.csv", sep = ",", stringsAsFactors = F)
+#TabelaEvolucaoDetalhada = merge(TabelaEvolucaoDetalhada, #Completa[,1:5], by.x = "Codigo", by.y = "Código.do.Programa")
+#TabelaEvolucaoDetalhada = merge(TabelaEvolucaoDetalhada,Estados,  by.x = "UF", by.y = "UF")
+
+#write.csv(TabelaEvolucaoDetalhada, "TabelaEvolucaoDetalhada.csv")
+```
+
+## Região {.tabset .tabset-fade }
+
+### Tabela
+
+```{r}
+Freqregiao = TabelaEvolucaoDetalhada$Regiao %>% table()
+Freqpropregiao = Freqregiao %>% prop.table()
+FreqregiaoMestDout = data.frame(Regiao = names(Freqregiao), cbind(Freqregiao, round(Freqpropregiao*100,2)))
+rownames(FreqregiaoMestDout) = NULL
+names(FreqregiaoMestDout) = c("Regiao", "Freq", "PropFreq")
+
+FreqregiaoMestDout %>% 
+  kable(caption = "Frequência de Programas por Região") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(height = "200px")
+```
+
+### Gráfico de barras 
+
+```{r}
+FreqregiaoMestDout2 = FreqregiaoMestDout
+FreqregiaoMestDout2$Regiao = factor(FreqregiaoMestDout2$Regiao, levels = c("Centro-Oeste",     "Distrito Federal", "Nordeste", "Norte", "Sudeste","Sul"), labels = c("CO", "DF", "NE", "NO", "SE", "S") )
+FreqregiaoMestDout2 = FreqregiaoMestDout2  %>% arrange(PropFreq)
+
+plot_ly(FreqregiaoMestDout2, x = ~Regiao, y = ~PropFreq,type = "bar", text = paste0(FreqregiaoMestDout2$PropFreq, "%, ", FreqregiaoMestDout2$Freq), textposition = 'auto') %>% 
+  layout(title = "Frequência De Programas por Região")
+
+
+```
+
+### Mapa
+
+```{r, warning=F}
+##juntando os dados de Estados com região e frequÊncia
+
+Estados <- read.csv("~/Estatística/PIBIC/Pos-graduacao/Estados.csv", stringsAsFactors = F)
+Estados = Estados[,-1]
+#Estados$siglaRegiao = factor(Estados$Regiao, levels = c("Centro-Oeste","Distrito Federal", "Nordeste","Norte","Sudeste", "Sul"), labels = c("CO", "DF", "NE", "NO", "SE", "S") ) %>%  as.character()
+
+Dadosregiao = merge(abjData::br_uf_map, Estados[,c(3,5)],  by.x = "id", by.y = "UF")
+names(FreqregiaoMestDout2)[1] = "siglaRegiao"
+
+### FUnção que gera o plot
+
+constroi_mapa_tematicoRegiao <- function(dataset){
+  dataset %>% 
+    inner_join(Dadosregiao) %>% {
+      ggplot(.) +
+        geom_map(aes(x = long, y = lat,
+                     map_id = id, fill = Freq),
+                 color = 'gray20', map = ., data = .) + 
+        theme_void() +
+        coord_equal()
+    }
+}
+
+
+```
+
+```{r, warning=F}
+FreqregiaoMestDout2 %>% 
+  constroi_mapa_tematicoRegiao() +
+  scale_fill_continuous( low = 'white', high = 'slateblue4', name = "Frequência") + 
+  ggtitle("Programas por Região") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+
+
+## Estado {.tabset .tabset-fade }  
+
+### Tabela de Frequências
+```{r}
+Frequencia = TabelaEvolucaoDetalhada %>% 
+  select(UF) %>% 
+  table() 
+PropReg = Frequencia %>% 
+  prop.table() %>% 
+  round(digits = 2)
+Estado = cbind(Frequencia, PropReg) %>% as.data.frame()
+Estado$UF = rownames(Estado)
+
+Estado %>% 
+  kable(caption = "Frequencia de programas por Região") %>% 
+  kable_styling() %>%
+  scroll_box(height = "200px")
+```
+
+
+
+
+### Gráfico de barras 
+
+```{r}
+
+plot_ly(Estado, x = ~UF, y = ~PropReg,type = "bar", text = paste0(Estado$PropReg*100, "%"), textposition = 'auto') %>% 
+  layout(title = "Frequência De Programas por Estado")
+
+
+```
+
+  
+Podemos verificar que há 7 estados do país que não possuem programas de Pós-graduação.  
+
+```{r, warning=F}
+quaisnaotem = Estados[-which(Estados$UF  %in% Estado$UF),2]
+quaisnaotem
+```
+
+
+### Mapa 
+
+```{r}
+# Primeiro iremos adicionar os dados dos Estados que não possuem dados
+names(Estado)[c(1,3)] = c("variavel", "id")
+quaisnaotem = Estados[-which(Estados$UF  %in% Estado$id),3]
+TodosEstados = rbind(Estado,
+                     data.frame(variavel = rep(0,length(quaisnaotem)),
+                                PropReg = rep(0,length(quaisnaotem)),
+                                id = quaisnaotem))
+
+constroi_mapa_tematico <- function(dataset){
+  dataset %>% 
+    inner_join(abjData::br_uf_map) %>% {
+      ggplot(.) +
+        geom_map(aes(x = long, y = lat,
+                     map_id = id, fill = variavel),
+                 color = 'gray20', map = ., data = .) + 
+        theme_void() +
+        coord_equal()
+    }
+}
+
+TodosEstados %>% 
+  constroi_mapa_tematico() +
+  scale_fill_continuous( low = 'white', high = 'slateblue4', name = "Frequência") + 
+  ggtitle("Programas por Estado") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+## Cidade 
+
+### Tabela
+```{r}
+FreqCidade = table(TabelaEvolucaoDetalhada$MUNICIPIO) %>% sort(decreasing = T)
+
+FreqCidade %>% 
+  kable(caption = "Frequência por Cidade",
+        col.names = c("Cidade", "Frequencia")) %>% 
+  kable_styling(bootstrap_options = "striped") %>%
+  scroll_box(height = "200px")
+```
+
+## CapitalxInterior {.tabset .tabset-fade }
+
+
+```{r}
+t = TabelaEvolucaoDetalhada$MUNICIPIO == TabelaEvolucaoDetalhada$Capital
+t = sapply(t, function(x){ifelse(x == TRUE, 1, 0)})
+TabelaEvolucaoDetalhada$DCapital = t
+
+```
+
+### Gráfico de Barras
+
+```{r}
+# Tabela de frequências
+FreqCapInt = table(TabelaEvolucaoDetalhada$DCapital) %>% data.frame()
+FreqCapInt$Var1 = ifelse(FreqCapInt$Var1 == 0, "Interior", "Capital")
+texto = paste0(FreqCapInt$Var1, ": ", FreqCapInt$Freq , ", ", round(FreqCapInt$Freq/sum(FreqCapInt$Freq), 2)*100, " %")
+
+# Gráfico de Barras
+FreqCapInt %>% 
+  plot_ly(x = ~Var1, y = ~Freq, type = "bar", text = texto, textposition = 'auto') %>% 
+  layout( title = "Frequência Capital/Interior", showlegend = F,
+         xaxis = list(title = " "),
+         yaxis = list(title = "Frequencia"))
+```
+
+### Gráfico de Rosca
+
+```{r}
+p <- TabelaEvolucaoDetalhada %>% 
+  group_by(DCapital) %>%
+  summarize(count = n()) %>%
+  plot_ly(labels = ~DCapital, values = ~count, text = c("Interior", "Capital"), marker = list(colors = c('rgb(158,200,225)', 'rgb(58,200,225)'))) %>%
+  add_pie(hole = 0.6) %>%
+  layout( title = "Proporção Capital/Interior", showlegend = F,
+         xaxis = list(showgrid = F, zeroline = F, showticklabels = F),
+         yaxis = list(showgrid = F, zeroline = F, showticklabels = F))
+p
+```
+
+## Tipo de Programa {.tabset .tabset-fade }
+
+### Tabela
+```{r}
+tabelaevolucaoMD <- read.csv("~/Estatística/PIBIC/Pos-graduacao/data/tabelaevolucaoMD.csv")
+```
+
+```{r}
+NivelNome = table(tabelaevolucaoMD$NOME,tabelaevolucaoMD$Nível )
+
+NivelNome %>% 
+  kable() %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))%>%
+  scroll_box(height = "200px")
+```
+
+### Gráfico de Barras
+```{r}
+TabNiNo = melt(NivelNome)
+TabNiNo$nome = c("ESTATÍSTICA","MATEMÁTICA")
+plot_ly(TabNiNo, x = ~Var.1, y = ~value, split = ~Var.2, type = "bar")
+```
+
+### Gráfico dividido 
+```{r}
+programas = data.frame(ids = c("ESTATÍSTICA","MATEMÁTICA", "Est-Mest", "Est-Dout","Mat-Apli", "Mat-Comp", "Mat-Pura", "Mat-Modelagem","Apli-Mest", "Apli-Dout", "Comp-Mest", "Pura-Mest", "Pura-Dout", "Mod-Mest", "Mod-Dou"),
+                   labels = c("ESTATÍSTICA","MATEMÁTICA","MESTRADO","DOUTORADO", "APLICADA", "COMPUTACIONAL", "PURA", "MODELAGEM", "MESTRADO", "DOUTORADO", "MESTRADO", "MESTRADO", "DOUTORADO", "MESTRADO", "DOUTORADO"),
+                       parents = c("", "","ESTATÍSTICA","ESTATÍSTICA","MATEMÁTICA","MATEMÁTICA","MATEMÁTICA","MATEMÁTICA","Mat-Apli","Mat-Apli","Mat-Comp","Mat-Pura","Mat-Pura","Mat-Modelagem","Mat-Modelagem"),stringsAsFactors = F)
+
+p <- plot_ly(programas, ids = ~ids, labels = ~labels, parents = ~parents, type = 'sunburst')
+p
+```
+
+
+## Ano
+
+### Gráfico de linha
+```{r}
+# Quantos Mestrados em cada ano
+QuantiMest = apply(TabelaEvolucaoDetalhada[,8:19],2, function(x){
+  x %>% na.omit() %>% length()
+})
+# Quantos Doutorados em cada ano
+QuantiDout = apply(TabelaEvolucaoDetalhada[,23:34],2, function(x){
+  x %>% na.omit() %>% length()
+})
+
+anos = QuantiMest %>% names() %>% str_replace_all("A","") %>% as.numeric()
+```
+
+
+```{r}
+xaxis <- list(title = "",
+             showline = TRUE,
+             showgrid = F,
+             showticklabels = TRUE,
+             linecolor = 'rgb(204, 204, 204)',
+             linewidth = 2,
+             autotick = F,
+             ticks = 'outside',
+             tickcolor = 'rgb(204, 204, 204)',
+             tickwidth = 2,
+             ticklen = 5,
+             tickfont = list(family = 'Arial',
+                             size = 12,
+                             color = 'rgb(82, 82, 82)'))
+
+yaxis <- list(title = "",
+             showgrid = F,
+             zeroline = F,
+             showline = F,
+             showticklabels = F)
+
+margin <- list(autoexpand = T,
+              l = 100,
+              r = 100,
+              t = 110)
+
+# Build the annotations
+
+Mest1 <- list(
+  xref = 'paper',
+  yref = 'y',
+  x = 0.05,
+  y = QuantiMest[1],
+  xanchor = 'right',
+  yanchor = 'middle',
+  text = ~paste( QuantiMest[1]),
+  font = list(family = 'Arial',
+              size = 16,
+              color = 'rgba(67,67,67,1)'),
+  showarrow = F)
+
+Dout1 <- list(
+  xref = 'paper',
+  yref = 'y',
+  x = 0.05,
+  y = QuantiDout[1],
+  xanchor = 'right',
+  yanchor = 'middle',
+  text = ~paste(QuantiDout[1]),
+  font = list(family = 'Arial',
+              size = 16,
+              color = 'rgba(49,130,189, 1)'),
+  showarrow = F)
+
+Mest2 <- list(
+  xref = 'paper',
+  x = 0.95,
+  y = QuantiMest[12],
+  xanchor = 'left',
+  yanchor = 'middle',
+  text = paste('Mestrado ', QuantiMest[12]),
+    font = list(family = 'Arial',
+                size = 16,
+                color = 'rgba(67,67,67,1)'),
+  showarrow = F)
+
+Dout2 <- list(
+  xref = 'paper',
+  x = 0.95,
+  y = QuantiDout[12],
+  xanchor = 'left',
+  yanchor = 'middle',
+  text = paste('Doutorado ', QuantiDout[12]),
+    font = list(family = 'Arial',
+                size = 16,
+                color = 'rgba(67,67,67,1)'),
+  showarrow = F)
+
+p <- plot_ly( x = ~anos) %>%
+  add_trace(y = ~QuantiMest, type = 'scatter', mode = 'lines', line = list(color = 'rgba(67,67,67,1)', width = 2))  %>%
+  add_trace(y = ~QuantiDout, type = 'scatter', mode = 'lines', line = list(color = 'rgba(49,130,189, 1)', width = 4)) %>%
+  add_trace(x = ~c(anos[1], anos[12]), y = ~c(QuantiMest[1], QuantiMest[12]), type = 'scatter', mode = 'markers', marker = list(color = 'rgba(67,67,67,1)', size = 8)) %>%
+  add_trace(x = ~c(anos[1], anos[12]), y = ~c(QuantiDout[1], QuantiDout[12]), type = 'scatter', mode = 'markers', marker = list(color = 'rgba(49,130,189, 1)', size = 12)) %>%
+  layout(title = "Quantidade de programas", xaxis = xaxis, yaxis = yaxis, margin = margin,
+         autosize = F,
+         showlegend = F,
+         annotations = Mest1) %>%
+  layout(annotations = Dout1) %>%
+  layout(annotations = Mest2) %>%
+  layout(annotations = Dout2)
+
+p
+```
+
+## Notas por ano {.tabset .tabset-fade }
+
+### Mestrado
+```{r, warning=F}
+plot_ly(TabelaEvolucaoDetalhada,  y = ~A1998, type = "box", name = "1998") %>%
+    add_boxplot(y = ~A2001, name = "2001")%>%
+    add_boxplot(y = ~A2004, name = "2004")%>%
+    add_boxplot(y = ~A2007, name = "2007")%>%
+    add_boxplot(y = ~A2008, name = "2008")%>%
+    add_boxplot(y = ~A2009, name = "2009")%>%
+    add_boxplot(y = ~A2010, name = "2010")%>%
+    add_boxplot(y = ~A2011, name = "2011")%>%
+    add_boxplot(y = ~A2012, name = "2012")%>%
+    add_boxplot(y = ~A2013, name = "2013")%>%
+    add_boxplot(y = ~A2014, name = "2014")%>%
+    add_boxplot(y = ~A2017, name = "2017") %>% 
+  layout(title = "Notas de Mestrado",
+         yaxis = list(title = "Notas"),
+         xaxis = list(title = ""))
+  
+
+```
+
+### Doutorado
+
+```{r,warning=F}
+plot_ly(TabelaEvolucaoDetalhada,  y = ~DA1998, type = "box", name = "1998") %>%
+    add_boxplot(y = ~DA2001, name = "2001")%>%
+    add_boxplot(y = ~DA2004, name = "2004")%>%
+    add_boxplot(y = ~DA2007, name = "2007")%>%
+    add_boxplot(y = ~DA2008, name = "2008")%>%
+    add_boxplot(y = ~DA2009, name = "2009")%>%
+    add_boxplot(y = ~DA2010, name = "2010")%>%
+    add_boxplot(y = ~DA2011, name = "2011")%>%
+    add_boxplot(y = ~DA2012, name = "2012")%>%
+    add_boxplot(y = ~DA2013, name = "2013")%>%
+    add_boxplot(y = ~DA2014, name = "2014")%>%
+    add_boxplot(y = ~DA2017, name = "2017") %>% 
+  layout(title = "Notas de Doutorado",
+         yaxis = list(title = "Notas"),
+         xaxis = list(title = ""))
+```
+
+
+## Idade dos Programas {.tabset .tabset-fade }
+
+### Mestrado
+```{r}
+anos = c(1998,2001,2004,2007,2008,2009,2010,2011,2012,2013,2014,2017)
+
+#Diferença de anos entre cada avaliação
+diferenaanos = c()
+for( i in 1:11){
+  diferenaanos[i+1] = anos[i+1] - anos[i]
+}
+diferenaanos[1] = 0
+
+# Quantos programas em cada ano
+
+quantosEmCadaAnoM = apply(TabelaEvolucaoDetalhada[,8:19], 2,function(a){which(!(is.na(a))) %>% length() })
+quantosEmCadaAnoD = apply(TabelaEvolucaoDetalhada[,23:34], 2,function(a){which(!(is.na(a))) %>% length() })
+
+# Quantos programas novos criados a cada ano de avaliação
+novosacadaanoM = c()
+for( i in 1:11){
+  novosacadaanoM[i+1] = quantosEmCadaAnoM[i+1] - quantosEmCadaAnoM[i]
+}
+novosacadaanoM[c(1, 10)] = c(quantosEmCadaAnoM[1], 0)
+
+novosacadaanoD = c()
+for( i in 1:11){
+  novosacadaanoD[i+1] = quantosEmCadaAnoD[i+1] - quantosEmCadaAnoD[i]
+}
+novosacadaanoD[1] = quantosEmCadaAnoD[1]
+
+idadeMest = data.frame(QuantidadePorAno = quantosEmCadaAnoM,
+                   NovosPorAno = novosacadaanoM,
+                   Idade = c(2017-anos))
+
+idadeDout = data.frame(QuantidadePorAno = quantosEmCadaAnoD,
+                   NovosPorAno = novosacadaanoD,
+                   Idade = c(2017-anos))
+
+idadeMest %>% 
+  kable()  %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))%>%
+  scroll_box(height = "200px")
+```
+
+### Doutorado
+```{r}
+idadeDout %>% 
+  kable()  %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))%>%
+  scroll_box(height = "200px")
+```
+
+### Crescimento dos programas a cada 3 anos
+
+```{r}
+paste0("Média da quantidade de programas de mestrado que aumenta a cada 3 anos: ",c(3,7,0,7,4,3) %>% mean()) 
+paste0("Média da quantidade de programas de doutorado que aumenta a cada 3 anos: ",c(3,3,8,2,3) %>% mean()) # média doutorado
+
+```
+
+### Média de tempo para mudar a nota
+
+#### Mestrado
+```{r}
+transpondonotas3 = TabelaEvolucaoDetalhada[8:19] %>% 
+  t() 
+colnames(transpondonotas3) = paste0("P",1:52)
+
+anosEmCadaNota = sapply(1:52, function(colu){
+  sapply(3:7,function(nota){
+    qualtemanota = which(transpondonotas3[,colu] == nota) 
+    
+    if (length(qualtemanota) == 0){
+      total = 0
+    }else{
+      # Testando se só tem um elemento com a primeira nota
+      if (length(qualtemanota )== 1){
+        total = 1
+      } else{
+        a = names(qualtemanota) %>% 
+          str_replace_all("A","") %>% 
+          as.numeric()
+        difAnos = c()
+        # Verificando se tem algum ano com nota baixa sem ser consecutiva
+        for( i in 1:(length(a)-1)){
+          difAnos[i+1] = a[i+1] - a[i]
+        }
+        tirar = which(difAnos >3)
+        if (length(tirar) != 0) { 
+          a = a[-tirar]
+        }
+        # Somando os anos que ficou com a nota
+        total = sum(diferenaanos[which(anos %in% a)])
+      }}
+  })
+}) %>% t() %>% data.frame()
+
+MediaAnoEmCadaNota = apply(anosEmCadaNota,2,function(a){
+  a[which(a !=0)] %>%
+    mean()}) %>% round() %>% as.data.frame()
+rownames(MediaAnoEmCadaNota) = paste0("Nota ", 3:7)
+dimnames(MediaAnoEmCadaNota) = list(paste0("Nota ", 3:7), "Media")
+
+
+MediaAnoEmCadaNota %>% kable(caption = "Media de anos que permanecem em cada nota/Mestrado") %>% kable_styling()
+```
+
+
+Todos que chegaram a nota 7 começaram pelo menos com 4  
+##### Chegando a Excelência
+
+```{r}
+soExc = apply(TabelaEvolucaoDetalhada[,8:19],2,function(a){which(a %in% 7)}) %>% 
+  unlist() %>% 
+  unique() %>% 
+  sort()
+# Selecionando somente os programas com nota 7
+so7 = TabelaEvolucaoDetalhada[soExc,8:19] 
+b = apply(so7, 1, function(a){b = which(a == 7)} %>% min)
+anos7 = anos[b]
+d = cbind(diferenaanos, anos, cumsum(diferenaanos))
+an = sapply(1:8, function(i){which(  d[,2]%in% anos7[i])})
+paste0("média de todos que chegaram em 7",d[an,3] %>% mean()) 
+paste0("média dos que começaram com nota menor e chegaram a 7",d[an[-c(5,6)],3] %>% mean()) 
+```
+
+#### Doutorado
+
+```{r}
+transpondonotas = TabelaEvolucaoDetalhada[,23:34] %>% 
+  t() 
+colnames(transpondonotas) = paste0("P",1:52)
+
+anosEmCadaNotaD = sapply(1:52, function(colu){
+  sapply(4:7,function(nota){
+    qualtemanota = which(transpondonotas[,colu] == nota) 
+    
+    if (length(qualtemanota) == 0){
+      total = 0
+    }else{
+      # Testando se só tem um elemento com a primeira nota
+      if (length(qualtemanota )== 1){
+        total = 1
+      } else{
+        a = names(qualtemanota) %>% 
+          str_replace_all("DA","") %>% 
+          as.numeric()
+        difAnos = c()
+        # Verificando se tem algum ano com nota baixa sem ser consecutiva
+        for( i in 1:(length(a)-1)){
+          difAnos[i+1] = a[i+1] - a[i]
+        }
+        tirar = which(difAnos >3)
+        if (length(tirar) != 0) { 
+          a = a[-tirar]
+        }
+        # Somando os anos que ficou com a nota
+        total = sum(diferenaanos[which(anos %in% a)])
+      }}
+  })
+}) %>% t() %>% data.frame()
+
+MediaAnoEmCadaNotaD = apply(anosEmCadaNotaD,2,function(a){
+  a[which(a !=0)] %>%
+    mean()}) %>% round() %>% as.data.frame()
+rownames(MediaAnoEmCadaNotaD) = paste0("Nota ", 4:7)
+dimnames(MediaAnoEmCadaNotaD) = list(paste0("Nota ", 4:7), "Media")
+
+
+MediaAnoEmCadaNotaD %>% kable(caption = "Média de anos que permanecem em cada nota/ Doutorado") %>% kable_styling()
+```
+
+
+```{r}
+soExcD = apply(TabelaEvolucaoDetalhada[,23:34],2,function(a){which(a %in% 7)}) %>% 
+  unlist() %>% 
+  unique() %>% 
+  sort()
+# Selecionando somente os programas com nota 7
+so7 = TabelaEvolucaoDetalhada[soExc,23:34] 
+b = apply(so7, 1, function(a){b = which(a == 7)} %>% min)
+anos7 = anos[b]
+d = cbind(diferenaanos, anos, cumsum(diferenaanos))
+an = sapply(1:8, function(i){which(  d[,2]%in% anos7[i])})
+d[an,3] %>% mean() # média de todos que chegaram em 7
+d[an[-c(5,6)],3] %>% mean() # média dos que começaram com nota menor e chegaram a 7
+```
+
+Os programas que chegaram a excelências são os mesmos que tem mestrado e doutorado  
+
+# Tabela Completa Nota Último Quadriênio
+
+```{r}
+Completa = read.csv("~/Estatística/PIBIC/Pos-graduacao/data/completissima.csv", stringsAsFactors = F)
+Completa = Completa[,-1]
+
+```
+
+## Tipo de Faculdade
+
+### Tabela de Frequências
+```{r}
+a = Completa %>% count(Tipo)
+a %>% kable() %>% kable_styling()
+```
+
+### Gráfico de barras
+```{r}
+texto = paste0(round((a$n/sum(a$n))*100,2), "%")
+a %>% 
+  plot_ly(x = ~Tipo, y = ~n, type = "bar", text = texto, textposition = 'auto') %>% 
+  layout( title = "Frequência Particular/Pública", showlegend = F,
+         xaxis = list(title = " "),
+         yaxis = list(title = "Frequência"))
+```
+
+## Nota Geral
+
+### Geral
+
+#### Tabela de Frequências
+
+```{r}
+NG = Completa %>% 
+  count(NotaGeral) 
+NG %>% 
+  kable() %>% 
+  kable_styling()
+```
+
+#### Boxplot
+```{r}
+plot_ly(Completa, y = ~NotaGeral,  type = "box")
+```
+
+#### Gráfico de barras
+```{r}
+NG %>% 
+  plot_ly(x = ~NotaGeral, y = ~n, 
+          text = ~n, textposition = 'auto', 
+          type = "bar") %>% 
+  layout(title = "Frequência das Notas Gerais de 2017",
+         xaxis = list(title = "Nota Geral"),
+         yaxis = list(title = "Frequência"))
+```
+
+
+### Por Estado
+
+#### Boxplot
+```{r}
+plot_ly(Completa, y = ~NotaGeral, x = ~UF, type = "box")
+```
+
+### Tipo de Programa
+
+```{r}
+plot_ly(Completa, y = ~NotaGeral, x = ~TipoPrograma, type = "box")
+```
+
+## Tópicos Principais {.tabset .tabset-fade }
+
+### Tabela de Frequências
+
+```{r}
+freqTopicos = apply(Completa[,c(12,16,21,26,31)], 2,function(a){
+  ta = a %>% table() %>% as.data.frame()
+  names(ta) = c("Notas", "Freq")
+  tu = data.frame(Notas = 2:5)
+  merge(tu,ta, by = "Notas", all.x = TRUE)})
+
+freqTopicos = do.call(cbind, freqTopicos)
+freqTopicos = freqTopicos[,c(1,seq(2,10,2))]
+names(freqTopicos) = c("Notas","PP", "CDo", "CDi", "PI", "IS")
+
+freqTopicos %>% kable() %>% kable_styling()
+```
+
+### Boxplot
+```{r}
+plot_ly(Completa, y = ~PropostaDoPrograma,  type = "box", name = "Proposta do Programa") %>% 
+  add_boxplot(y = ~CorpoDocente,  type = "box", name = "Corpo Docente") %>% 
+  add_boxplot(y = ~CorpoDiscenteTD,  type = "box", name = "Corpo Discente") %>% 
+  add_boxplot(y = ~ProducaoIntelectual,  type = "box", name = "Produção Intelectual") %>% 
+  add_boxplot(y = ~InsercaoSocial,  type = "box", name = "Inserção Social") 
+```
+
+#### Gráfico de barras
+```{r}
+freqTopicos %>% 
+  plot_ly(x = ~PP, y = ~Notas, 
+          text = ~Notas, textposition = 'auto', 
+          type = "bar", orientation = 'h') %>% 
+  add_trace(x = ~CDo) %>% 
+  layout(barmode = 'group')
+```
+
